@@ -1,0 +1,14 @@
+{
+  "name": "NPM Apps",
+  "description": "Official app catalog for NPM Desktop.",
+  "apps": [
+    {
+      "id": "ceo-clock",
+      "name": "CEO Clock",
+      "description": "A 24-hour schedule clock that shows what you should be doing right now. Fully customizable time blocks.",
+      "icon": "🕐",
+      "color": "#6965db",
+      "entry": "apps/ceo-clock/index.html"
+    }
+  ]
+}

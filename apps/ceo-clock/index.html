@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CEO Clock</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --tile: rgba(255,255,255,.05);
+      --border: rgba(255,255,255,.1);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #6965db;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(160deg, var(--bg), #111827);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    h1 { font-size: 1.5rem; text-align: center; margin-bottom: 4px; }
+    .sub { text-align: center; color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+
+    .layout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      justify-content: center;
+      align-items: flex-start;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .clock-wrap { flex: 0 0 auto; text-align: center; }
+    svg { width: min(86vw, 380px); height: auto; }
+
+    .now-card {
+      margin-top: 16px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      min-width: 240px;
+    }
+    .now-time { font-size: 2rem; font-weight: 700; letter-spacing: .02em; }
+    .now-act { font-size: 1.1rem; margin-top: 4px; }
+    .now-next { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+
+    .editor {
+      flex: 1 1 320px;
+      max-width: 440px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .editor h2 { font-size: 1.05rem; margin-bottom: 14px; }
+
+    .block {
+      display: grid;
+      grid-template-columns: 18px 1fr 64px 64px 28px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .block .sw { width: 16px; height: 16px; border-radius: 5px; border: none; cursor: pointer; padding: 0; }
+    .block input[type=text] {
+      width: 100%; padding: 7px 9px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--tile); color: var(--text); outline: none; font-size: .85rem;
+    }
+    .block input[type=time] {
+      padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--tile); color: var(--text); outline: none; font-size: .8rem;
+    }
+    .block input:focus { border-color: var(--accent); }
+    .block .del {
+      width: 26px; height: 26px; border-radius: 7px; border: none; cursor: pointer;
+      background: var(--tile); color: var(--muted); font-size: 15px;
+    }
+    .block .del:hover { background: #ef4444; color: #fff; }
+
+    .toolbar { display: flex; gap: 10px; margin-top: 16px; }
+    .toolbar button {
+      flex: 1; padding: 10px; border-radius: 10px; border: none; cursor: pointer;
+      font-size: .9rem; font-weight: 500;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost { background: var(--tile); color: var(--text); border: 1px solid var(--border); }
+    .hint { color: var(--muted); font-size: .78rem; margin-top: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>🕐 CEO Clock</h1>
+  <p class="sub">What should you be doing right now?</p>
+
+  <div class="layout">
+    <div class="clock-wrap">
+      <svg id="clock" viewBox="0 0 300 300" aria-label="24-hour schedule clock"></svg>
+      <div class="now-card">
+        <div class="now-time" id="nowTime">--:--</div>
+        <div class="now-act" id="nowAct">—</div>
+        <div class="now-next" id="nowNext"></div>
+      </div>
+    </div>
+
+    <div class="editor">
+      <h2>Your schedule</h2>
+      <div id="blocks"></div>
+      <div class="toolbar">
+        <button class="btn-ghost" id="addBlock">+ Add block</button>
+        <button class="btn-primary" id="save">Save</button>
+      </div>
+      <button class="btn-ghost" id="reset" style="width:100%;margin-top:10px;padding:9px;border-radius:10px;cursor:pointer;font-size:.85rem;">Reset to default</button>
+      <p class="hint">Each block = one position and how long you spend on it. Times use a 24-hour day; a block whose end is earlier than its start wraps past midnight (e.g. sleep). Saved in this browser.</p>
+    </div>
+  </div>
+
+  <script>
+    const STORE = 'ceo-clock:schedule';
+    const CX = 150, CY = 150, R_OUT = 130, R_IN = 78;
+
+    const DEFAULTS = [
+      { label: "😴 Sleep",            start: "00:00", end: "07:00", color: "#334155" },
+      { label: "☕ Morning routine",  start: "07:00", end: "08:00", color: "#f59e0b" },
+      { label: "📧 Email & planning", start: "08:00", end: "09:00", color: "#0ea5e9" },
+      { label: "💻 Develop",          start: "09:00", end: "12:00", color: "#22c55e" },
+      { label: "🍱 Lunch",            start: "12:00", end: "13:00", color: "#eab308" },
+      { label: "🎨 Design",           start: "13:00", end: "16:00", color: "#a855f7" },
+      { label: "🤝 Owner work",       start: "16:00", end: "18:00", color: "#ef4444" },
+      { label: "🍽️ Dinner",           start: "18:00", end: "19:00", color: "#fb7185" },
+      { label: "📖 Free time",        start: "19:00", end: "21:30", color: "#38bdf8" },
+      { label: "🌙 Wind down",        start: "21:30", end: "24:00", color: "#64748b" }
+    ];
+
+    let schedule = load();
+
+    function load() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORE));
+        if (Array.isArray(s) && s.length) return s;
+      } catch {}
+      return structuredClone(DEFAULTS);
+    }
+    function persist() { localStorage.setItem(STORE, JSON.stringify(schedule)); }
+
+    const toMin = (t) => { const [h, m] = t.split(':').map(Number); return (h * 60 + (m || 0)); };
+    // 24:00 -> 1440
+    function spanMinutes(b) {
+      let s = toMin(b.start), e = toMin(b.end);
+      if (e <= s) e += 1440; // wraps past midnight
+      return [s, e];
+    }
+    function isActive(b, now) {
+      let [s, e] = spanMinutes(b);
+      return (now >= s && now < e) || (now + 1440 >= s && now + 1440 < e);
+    }
+
+    // ---- Clock drawing ----
+    function polar(r, deg) {
+      const a = (deg - 90) * Math.PI / 180;
+      return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
+    }
+    function donutSlice(a0, a1, rOut, rIn) {
+      const large = (a1 - a0) > 180 ? 1 : 0;
+      const [ox0, oy0] = polar(rOut, a0), [ox1, oy1] = polar(rOut, a1);
+      const [ix1, iy1] = polar(rIn, a1), [ix0, iy0] = polar(rIn, a0);
+      return `M ${ox0} ${oy0} A ${rOut} ${rOut} 0 ${large} 1 ${ox1} ${oy1}`
+           + ` L ${ix1} ${iy1} A ${rIn} ${rIn} 0 ${large} 0 ${ix0} ${iy0} Z`;
+    }
+
+    function drawClock() {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const svg = document.getElementById('clock');
+      let out = '';
+
+      // slices
+      schedule.forEach(b => {
+        let [s, e] = spanMinutes(b);
+        // clip to 0..1440 for the visible ring (draw wrap as two arcs)
+        const segs = e > 1440 ? [[s, 1440], [0, e - 1440]] : [[s, e]];
+        segs.forEach(([ss, ee]) => {
+          if (ee <= ss) return;
+          const a0 = ss / 1440 * 360, a1 = ee / 1440 * 360;
+          const active = isActive(b, nowMin);
+          out += `<path d="${donutSlice(a0, a1, R_OUT, R_IN)}" fill="${b.color}" `
+               + `opacity="${active ? 1 : 0.55}" stroke="#0f172a" stroke-width="1.5"/>`;
+        });
+      });
+
+      // hour ticks + labels (every 3h)
+      for (let h = 0; h < 24; h += 3) {
+        const deg = h / 24 * 360;
+        const [lx, ly] = polar(R_OUT + 14, deg);
+        out += `<text x="${lx}" y="${ly}" fill="#94a3b8" font-size="11" `
+             + `text-anchor="middle" dominant-baseline="middle">${h}</text>`;
+      }
+
+      // now hand
+      const nowDeg = nowMin / 1440 * 360;
+      const [hx, hy] = polar(R_OUT, nowDeg);
+      const [tx, ty] = polar(R_IN - 6, nowDeg);
+      out += `<line x1="${tx}" y1="${ty}" x2="${hx}" y2="${hy}" stroke="#fff" stroke-width="3" stroke-linecap="round"/>`;
+      out += `<circle cx="${CX}" cy="${CY}" r="5" fill="#fff"/>`;
+
+      svg.innerHTML = out;
+    }
+
+    function updateNow() {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      document.getElementById('nowTime').textContent =
+        String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+      const current = schedule.find(b => isActive(b, nowMin));
+      document.getElementById('nowAct').textContent = current ? current.label : '— nothing scheduled —';
+
+      // find next block start after now
+      let next = null, bestDelta = Infinity;
+      schedule.forEach(b => {
+        let s = toMin(b.start);
+        let delta = s - nowMin; if (delta <= 0) delta += 1440;
+        if (delta < bestDelta) { bestDelta = delta; next = b; }
+      });
+      document.getElementById('nowNext').textContent =
+        next ? `Next: ${next.label} at ${next.start}` : '';
+    }
+
+    function tick() { drawClock(); updateNow(); }
+
+    // ---- Editor ----
+    function renderEditor() {
+      const wrap = document.getElementById('blocks');
+      wrap.innerHTML = '';
+      schedule.forEach((b, i) => {
+        const row = document.createElement('div');
+        row.className = 'block';
+        row.innerHTML =
+          `<input class="sw" type="color" value="${b.color}" data-i="${i}" data-k="color" title="Color">` +
+          `<input type="text" value="" data-i="${i}" data-k="label" placeholder="Position">` +
+          `<input type="time" value="${b.start}" data-i="${i}" data-k="start">` +
+          `<input type="time" value="${b.end === '24:00' ? '23:59' : b.end}" data-i="${i}" data-k="end">` +
+          `<button class="del" data-i="${i}" title="Remove">×</button>`;
+        row.querySelector('[data-k=label]').value = b.label;
+        wrap.appendChild(row);
+      });
+
+      wrap.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', e => {
+          const i = +e.target.dataset.i, k = e.target.dataset.k;
+          schedule[i][k] = e.target.value;
+          tick();
+        });
+      });
+      wrap.querySelectorAll('.del').forEach(btn => {
+        btn.addEventListener('click', e => {
+          schedule.splice(+e.target.dataset.i, 1);
+          renderEditor(); tick();
+        });
+      });
+    }
+
+    document.getElementById('addBlock').onclick = () => {
+      schedule.push({ label: "New position", start: "12:00", end: "13:00", color: "#38bdf8" });
+      renderEditor(); tick();
+    };
+    document.getElementById('save').onclick = () => {
+      persist();
+      const btn = document.getElementById('save');
+      btn.textContent = 'Saved ✓';
+      setTimeout(() => (btn.textContent = 'Save'), 1200);
+    };
+    document.getElementById('reset').onclick = () => {
+      if (confirm('Reset schedule to the default CEO day?')) {
+        schedule = structuredClone(DEFAULTS);
+        persist(); renderEditor(); tick();
+      }
+    };
+
+    renderEditor();
+    tick();
+    setInterval(tick, 15000); // keep the hand & "now" fresh
+  </script>
+</body>
+</html>
