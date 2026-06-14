@@ -1,0 +1,10 @@
+{
+  "name": "ceo-clock",
+  "version": "1.0.0",
+  "description": "A 24-hour schedule clock that shows what you should be doing right now.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
